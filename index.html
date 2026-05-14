@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IPL Qualification Calculator</title>
+    <meta
+      name="description"
+      content="Estimate whether an IPL team has clinched a playoff spot or how many wins are needed to guarantee qualification."
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script defer src="app.js"></script>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Indian Premier League playoff calculator</p>
+          <h1>See who is qualified and how many wins are still needed.</h1>
+          <p class="lede">
+            The calculator fetches the latest IPL season data automatically from
+            Cricsheet, turns completed matches into points, and estimates whether a
+            team is already safe for the top four.
+          </p>
+        </div>
+        <div class="hero-card">
+          <div>
+            <span class="stat-label">Points system</span>
+            <strong>Win 2 · No result 1 · Loss 0</strong>
+          </div>
+          <div>
+            <span class="stat-label">League format</span>
+            <strong>10 teams · 14 matches each</strong>
+          </div>
+          <div>
+            <span class="stat-label">Guarantee rule</span>
+            <strong>Needs to clear the 4th-highest opponent ceiling</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel controls">
+        <div class="control-group">
+          <label for="teamSelect">Check team</label>
+          <select id="teamSelect"></select>
+        </div>
+        
+        <button id="refreshData" class="secondary-button" type="button">Refresh live data</button>
+      </section>
+
+      <section class="dashboard">
+        <article class="panel summary" id="summaryCard">
+          <div class="summary-top">
+            <div>
+              <p class="label">Qualification status</p>
+              <h2 id="selectedTeamName">Team 1</h2>
+            </div>
+            <span id="statusPill" class="pill">Loading</span>
+          </div>
+          <div class="summary-grid">
+            <div class="metric">
+              <span>Current points</span>
+              <strong id="currentPoints">0</strong>
+            </div>
+            <div class="metric">
+              <span>Matches played</span>
+              <strong id="matchesPlayed">0</strong>
+            </div>
+            <div class="metric">
+              <span>Remaining matches</span>
+              <strong id="remainingMatches">14</strong>
+            </div>
+            <div class="metric">
+              <span>Win ceiling needed</span>
+              <strong id="winsNeeded">0</strong>
+            </div>
+          </div>
+          <p class="summary-copy" id="summaryCopy">
+            Loading the latest IPL matches from Cricsheet.
+          </p>
+        </article>
+
+        <article class="panel standings">
+          <div class="panel-heading">
+            <div>
+              <p class="label">Current table</p>
+              <h2>Points and upside</h2>
+            </div>
+            <span class="hint">Sorted by current points</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Team</th>
+                  <th>Pld</th>
+                  <th>W</th>
+                  <th>L</th>
+                  <th>NR</th>
+                  <th>NRR</th>
+                  <th>Pts</th>
+                  <th>Max</th>
+                </tr>
+              </thead>
+              <tbody id="standingsBody"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel live-source">
+        <div class="panel-heading">
+          <div>
+            <p class="label">Live source</p>
+            <h2>Auto-refreshed season data</h2>
+          </div>
+          <span class="hint" id="refreshState">Waiting for data</span>
+        </div>
+        <p>
+          Data is fetched from the Cricsheet IPL JSON archive on page load and then
+          refreshed automatically in the background. The app keeps a cached copy so it
+          can still render the last successful season snapshot if a refresh fails.
+        </p>
+        <p class="live-meta" id="liveMeta"></p>
+      </section>
+
+      <section class="panel notes">
+        <h2>How the calculator decides</h2>
+        <p>
+          A team is marked as Qualified only when its current points are already above the
+          highest possible final points of the fifth-place challenger. Tie-breakers and
+          net run rate are not modeled, so equal-point situations are treated as not guaranteed.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>
