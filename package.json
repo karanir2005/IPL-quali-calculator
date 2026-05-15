@@ -1,0 +1,20 @@
+{
+  "name": "ipl-quali-calculator",
+  "version": "1.0.0",
+  "description": "IPL Qualification Calculator with live data from ESPN Cricinfo",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["ipl", "cricket", "standings"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "cheerio": "^1.0.0-rc.12",
+    "axios": "^1.6.0"
+  }
+}

@@ -9,7 +9,6 @@
       content="Estimate whether an IPL team has clinched a playoff spot or how many wins are needed to guarantee qualification."
     />
     <link rel="stylesheet" href="styles.css" />
-    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script defer src="app.js"></script>
   </head>
   <body>
@@ -19,9 +18,8 @@
           <p class="eyebrow">Indian Premier League playoff calculator</p>
           <h1>See who is qualified and how many wins are still needed.</h1>
           <p class="lede">
-            The calculator fetches the latest IPL season data automatically from
-            Cricsheet, turns completed matches into points, and estimates whether a
-            team is already safe for the top four.
+            The calculator fetches live IPL standings from ESPN Cricinfo via a Node.js backend,
+            turns completed matches into points, and estimates whether a team is already safe for the top four.
           </p>
         </div>
         <div class="hero-card">
@@ -77,7 +75,7 @@
             </div>
           </div>
           <p class="summary-copy" id="summaryCopy">
-            Loading the latest IPL matches from Cricsheet.
+            Loading standings from ESPN Cricinfo via backend server...
           </p>
         </article>
 
@@ -118,9 +116,8 @@
           <span class="hint" id="refreshState">Waiting for data</span>
         </div>
         <p>
-          Data is fetched from the Cricsheet IPL JSON archive on page load and then
-          refreshed automatically in the background. The app keeps a cached copy so it
-          can still render the last successful season snapshot if a refresh fails.
+          Data is fetched from ESPN Cricinfo standings via a Node.js backend server running on port 5000.
+          Click "Refresh live data" to fetch the latest standings. All data is fresh—no caching.
         </p>
         <p class="live-meta" id="liveMeta"></p>
       </section>

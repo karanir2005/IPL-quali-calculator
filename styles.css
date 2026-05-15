@@ -363,12 +363,6 @@ tbody tr:hover {
   font-weight: 700;
 }
 
-.pill.eliminated {
-  background: transparent;
-  color: var(--danger);
-  border: 1px solid rgba(255, 107, 107, 0.16);
-}
-
 .notes {
   border-left: 4px solid rgba(247, 184, 75, 0.7);
 }
