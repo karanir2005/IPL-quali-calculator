@@ -57,9 +57,10 @@ function getSeasonKey(match) {
 }
 
 function getTeamStats(team, matchesPerTeam) {
-  const played = team.wins + team.losses + team.noResults;
+  // Respect values provided by the backend (M, PTS). Only compute maxPoints here.
+  const played = Number.isFinite(Number(team.played)) ? Number(team.played) : (team.wins + team.losses + team.noResults);
   const remaining = Math.max(matchesPerTeam - played, 0);
-  const points = team.wins * 2 + team.noResults;
+  const points = (team.points !== undefined && Number.isFinite(Number(team.points))) ? Number(team.points) : (team.wins * 2 + team.noResults);
   const maxPoints = points + remaining * 2;
 
   return {
@@ -108,42 +109,74 @@ function buildTeamSelect() {
 function renderStandings() {
   const matchesPerTeam = DEFAULT_MATCHES_PER_TEAM;
   const stats = teams.map((team) => getTeamStats(team, matchesPerTeam));
-  const sorted = sortStandings(stats);
-  const selectedStats = stats[selectedTeamIndex] || stats[0];
-
-  if (!selectedStats) {
+  if (!stats.length) {
+    // No live data — clear UI and return (per user request: show nothing)
+    standingsBody.innerHTML = '';
+    selectedTeamName.textContent = '';
+    currentPoints.textContent = '';
+    matchesPlayed.textContent = '';
+    remainingMatches.textContent = '';
+    winsNeeded.textContent = '';
+    statusPill.className = 'pill';
+    statusPill.textContent = '';
+    summaryCopy.textContent = '';
+    liveMeta.textContent = `0 teams loaded from ${formatSeasonLabel(seasonLabel)}. Last refreshed ${lastUpdated || 'just now'}.`;
     return;
   }
 
-  const threshold = getThreshold(stats, selectedTeamIndex);
-  const winsToGuarantee = Math.max(0, Math.floor((threshold - selectedStats.points) / 2) + 1);
-  const qualified = selectedStats.points > threshold;
-  const impossible = !qualified && winsToGuarantee > selectedStats.remaining;
+  const sorted = sortStandings(stats);
+  const selectedStats = stats[selectedTeamIndex] || stats[0];
+
+  // New three-state qualification logic requested by user:
+  // 1) Eliminated: if the top 4 opponents' current points are already greater than the team's max points (or if even winning all remaining matches can't meet the condition).
+  // 2) Qualified: if at most 3 opponents can still reach or exceed the team's current points (i.e. <= 3 opponents have maxPoints >= your current points).
+  // 3) Still open: otherwise.
+
+  const opponents = stats.filter((_, index) => index !== selectedTeamIndex);
+
+  // Eliminated: if even your maxPoints is less than the CURRENT points of the team currently in 4th place.
+  const fourthPlace = sorted[QUALIFYING_SPOTS - 1];
+  const isEliminated = fourthPlace ? (selectedStats.maxPoints < fourthPlace.points) : false;
+
+  // Qualified: if at most 3 opponents can still reach or exceed your CURRENT points.
+  const opponentsThatCanReachCurrent = opponents.filter((t) => (t.maxPoints || 0) >= selectedStats.points).length;
+  const isQualified = opponentsThatCanReachCurrent <= (QUALIFYING_SPOTS - 1);
+
+  // Compute minimal additional wins required so that at most 3 opponents can reach or exceed your (hypothetical) points.
+  let winsToGuarantee = Infinity;
+  for (let w = 0; w <= selectedStats.remaining; w++) {
+    const hypotheticalPoints = selectedStats.points + w * 2;
+    const opponentsCanReach = opponents.filter((t) => (t.maxPoints || 0) >= hypotheticalPoints).length;
+    if (opponentsCanReach <= (QUALIFYING_SPOTS - 1)) {
+      winsToGuarantee = w;
+      break;
+    }
+  }
 
   selectedTeamName.textContent = selectedStats.name;
   currentPoints.textContent = String(selectedStats.points);
   matchesPlayed.textContent = String(selectedStats.played);
   remainingMatches.textContent = String(selectedStats.remaining);
-  winsNeeded.textContent = qualified ? '0' : String(winsToGuarantee);
+  winsNeeded.textContent = isQualified ? '0' : (winsToGuarantee === Infinity ? '—' : String(winsToGuarantee));
 
   statusPill.className = 'pill';
-  if (qualified) {
+  if (isQualified) {
     statusPill.textContent = 'Qualified';
     statusPill.classList.add('clinched');
-  } else if (impossible) {
-    statusPill.textContent = 'Not yet possible';
+  } else if (isEliminated) {
+    statusPill.textContent = 'Eliminated';
     statusPill.classList.add('impossible');
   } else {
     statusPill.textContent = 'Still open';
     statusPill.classList.add('pending');
   }
 
-  if (qualified) {
-    summaryCopy.textContent = `${selectedStats.name} has already qualified for the playoffs on points alone. Even a worst-case finish still leaves them above the fifth-place ceiling.`;
-  } else if (impossible) {
-    summaryCopy.textContent = `${selectedStats.name} cannot guarantee qualification yet. Even winning all remaining matches would leave them short of the conservative playoff threshold.`;
+  if (isQualified) {
+    summaryCopy.textContent = `${selectedStats.name} has already qualified: at most ${QUALIFYING_SPOTS - 1} other teams can reach their current points.`;
+  } else if (isEliminated) {
+    summaryCopy.textContent = `${selectedStats.name} is eliminated from qualification: even winning all remaining matches cannot reach the current 4th-place points.`;
   } else {
-    summaryCopy.textContent = `${selectedStats.name} needs ${winsToGuarantee} more win${winsToGuarantee === 1 ? '' : 's'} to guarantee qualification under the conservative points-only check.`;
+    summaryCopy.textContent = `${selectedStats.name} needs ${winsToGuarantee} more win${winsToGuarantee === 1 ? '' : 's'} to guarantee qualification under the points-only check.`;
   }
 
   renderTable(sorted, selectedStats.name);
@@ -206,14 +239,6 @@ function setStateFromPayload(payload) {
   lastUpdated = payload.lastUpdated || '';
   selectedTeamIndex = Math.min(selectedTeamIndex, Math.max(teams.length - 1, 0));
 
-  if (!teams.length) {
-    teams = Array.from({ length: TEAM_COUNT }, (_, index) => ({
-      name: `Team ${index + 1}`,
-      wins: 0,
-      losses: 0,
-      noResults: 0,
-    }));
-  }
 
   buildTeamSelect();
   renderStandings();
@@ -291,15 +316,8 @@ teamSelect.addEventListener('change', (event) => {
 });
 refreshButton.addEventListener('click', () => refreshLiveData({ force: true }));
 
-// Initialize with blank teams
-teams = Array.from({ length: TEAM_COUNT }, (_, index) => ({
-  name: `Team ${index + 1}`,
-  wins: 0,
-  losses: 0,
-  noResults: 0,
-  points: 0,
-  nrr: 0,
-}));
+// Start with no teams — UI will remain empty until live data is fetched
+teams = [];
 buildTeamSelect();
 renderStandings();
 updateRefreshState('Click "Refresh live data" to fetch current standings', false);

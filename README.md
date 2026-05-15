@@ -66,9 +66,9 @@ The app uses a conservative approach:
 - "Not yet possible" when even winning all remaining matches won't guarantee qualification
 
 **Data Source:**
-- Live standings scraped from [ESPN Cricinfo IPL 2026 Standings](https://www.espncricinfo.com/series/indian-premier-league-2026-1410320/standings)
-- Updated automatically when you click "Refresh live data"
-- No caching—always fresh data
+- Live standings scraped directly from ESPN Cricinfo (IPL 2026).
+- The backend attempts to fetch fresh data on every request; there is NO fallback dataset.
+- If the scraper fails or no live data is found, the API returns an empty result and the frontend will show no standings.
 
 ## Features
 

@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import { fetchLiveStandings, DEFAULT_STANDINGS_2026 } from './backend/scraper.js';
+import { fetchLiveStandings } from './backend/scraper.js';
 import { normalizeTeam, sortStandings } from './backend/calculations.js';
 
 const app = express();
@@ -13,12 +13,12 @@ app.use(express.json());
 app.get('/api/standings', async (req, res) => {
   try {
     console.log('\n========================================');
-    console.log('API request: /api/standings');
+    console.log('Scrape request: /api/standings');
     console.log('Time:', new Date().toLocaleTimeString());
-    console.log('Attempting to fetch live 2026 IPL data...');
+    console.log('Attempting to scrape live 2026 IPL data...');
     console.log('========================================');
     
-    // Try to fetch from any available live source
+    // Scrape ESPN HTML directly
     let liveData = await fetchLiveStandings();
     
     let teams = [];
@@ -35,13 +35,15 @@ app.get('/api/standings', async (req, res) => {
       }
     }
     
-    // Fallback to default 2026 standings if live data not available
-    if (teams.length === 0) {
-      console.log('\n⚠ Using default 2026 IPL standings');
-      teams = DEFAULT_STANDINGS_2026;
-      source = 'ESPN Cricinfo (2026 Season - Default)';
-    } else {
-      console.log(`\n✓ Successfully retrieved live data from: ${source}`);
+    // If no live teams were found, return an empty response
+    if (!teams || teams.length === 0) {
+      console.log('\n⚠ No live standings found; returning empty result');
+      return res.json({
+        success: false,
+        teams: [],
+        lastUpdated: new Date().toLocaleString(),
+        source: source || null
+      });
     }
 
     // Normalize and sort teams using shared helpers
@@ -57,19 +59,19 @@ app.get('/api/standings', async (req, res) => {
       success: true,
       teams: sorted,
       lastUpdated: new Date().toLocaleString(),
-      source: source
+      source: source || 'ESPN Cricinfo'
     });
 
   } catch (error) {
     console.error('\n❌ Unexpected error in /api/standings:');
     console.error(error.message);
     
-    // Return default data even on error
+    // On error, return empty result (no fallback data)
     return res.json({
-      success: true,
-      teams: DEFAULT_STANDINGS_2026.slice(0, 10),
+      success: false,
+      teams: [],
       lastUpdated: new Date().toLocaleString(),
-      source: 'ESPN Cricinfo (2026 Season - Default Fallback)'
+      source: null
     });
   }
 });
@@ -84,7 +86,7 @@ app.listen(PORT, () => {
   console.log(`Port: ${PORT}`);
   console.log(`API Endpoint: http://localhost:${PORT}/api/standings`);
   console.log(`Health Check: http://localhost:${PORT}/health`);
-  console.log(`Data Source: 2026 IPL Season (Live + Default Fallback)`);
+  console.log(`Data Source: 2026 IPL Season (ESPN HTML scrape)`);
   console.log(`${'='.repeat(60)}\n`);
   console.log('Server ready! Waiting for API requests...\n');
 });
