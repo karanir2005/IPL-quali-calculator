@@ -10,6 +10,7 @@ const winsNeeded = document.getElementById('winsNeeded');
 const summaryCopy = document.getElementById('summaryCopy');
 const refreshState = document.getElementById('refreshState');
 const liveMeta = document.getElementById('liveMeta');
+const howScenariosEl = document.getElementById('howScenarios');
 
 const TEAM_COUNT = 10;
 const CACHE_KEY = 'ipl-quali-live-cache-v1';
@@ -24,6 +25,7 @@ let lastUpdated = '';
 let selectedTeamIndex = 0;
 let refreshTimer = null;
 let refreshInFlight = false;
+let qualificationData = null;
 
 function parseNumber(value) {
   const parsed = Number.parseInt(value, 10);
@@ -127,6 +129,9 @@ function renderStandings() {
   const sorted = sortStandings(stats);
   const selectedStats = stats[selectedTeamIndex] || stats[0];
 
+  // qualification summary from backend (may be null if not fetched)
+  const selectedQualification = qualificationData?.teams?.find((team) => team.name === selectedStats.name);
+
   // New three-state qualification logic requested by user:
   // 1) Eliminated: if the top 4 opponents' current points are already greater than the team's max points (or if even winning all remaining matches can't meet the condition).
   // 2) Qualified: if at most 3 opponents can still reach or exceed the team's current points (i.e. <= 3 opponents have maxPoints >= your current points).
@@ -134,9 +139,19 @@ function renderStandings() {
 
   const opponents = stats.filter((_, index) => index !== selectedTeamIndex);
 
-  // Eliminated: if even your maxPoints is less than the CURRENT points of the team currently in 4th place.
+  // Eliminated: if backend enumeration shows zero qualifying paths, treat as eliminated (simple rule),
+  // otherwise fallback to points-only check versus current 4th place.
   const fourthPlace = sorted[QUALIFYING_SPOTS - 1];
-  const isEliminated = fourthPlace ? (selectedStats.maxPoints < fourthPlace.points) : false;
+  let isEliminated = false;
+  if (selectedQualification && typeof selectedQualification.scenariosTop4 === 'number') {
+    if (selectedQualification.scenariosTop4 === 0) {
+      isEliminated = true;
+    } else {
+      isEliminated = fourthPlace ? (selectedStats.maxPoints < fourthPlace.points) : false;
+    }
+  } else {
+    isEliminated = fourthPlace ? (selectedStats.maxPoints < fourthPlace.points) : false;
+  }
 
   // Qualified: if at most 3 opponents can still reach or exceed your CURRENT points.
   const opponentsThatCanReachCurrent = opponents.filter((t) => (t.maxPoints || 0) >= selectedStats.points).length;
@@ -174,13 +189,54 @@ function renderStandings() {
   if (isQualified) {
     summaryCopy.textContent = `${selectedStats.name} has already qualified: at most ${QUALIFYING_SPOTS - 1} other teams can reach their current points.`;
   } else if (isEliminated) {
-    summaryCopy.textContent = `${selectedStats.name} is eliminated from qualification: even winning all remaining matches cannot reach the current 4th-place points.`;
+    if (selectedQualification && typeof selectedQualification.scenariosTop4 === 'number' && selectedQualification.scenariosTop4 === 0) {
+      summaryCopy.textContent = `${selectedStats.name} appears eliminated: no wins/loss scenarios reach top 4 (low chance by NRR).`;
+    } else {
+      summaryCopy.textContent = `${selectedStats.name} is eliminated from qualification: even winning all remaining matches cannot reach the current 4th-place points (low chance by NRR).`;
+    }
   } else {
-    summaryCopy.textContent = `${selectedStats.name} needs ${winsToGuarantee} more win${winsToGuarantee === 1 ? '' : 's'} to guarantee qualification under the points-only check.`;
+    if (winsToGuarantee === Infinity) {
+      summaryCopy.textContent = `${selectedStats.name} cannot guarantee qualification based on points only.`;
+    } else {
+      summaryCopy.textContent = `${selectedStats.name} needs ${winsToGuarantee} more win${winsToGuarantee === 1 ? '' : 's'} to guarantee qualification based on points only.`;
+    }
   }
 
   renderTable(sorted, selectedStats.name);
   liveMeta.textContent = `${stats.length} teams loaded from ${formatSeasonLabel(seasonLabel)}. Last refreshed ${lastUpdated || 'just now'}.`;
+
+  // Render brief qualification scenarios if available and small enough
+  // Keep the qualifying-path count visible even when no detailed scenarios are shown
+  const detailedScenarioLimit = qualificationData?.maxDetailedScenarios ?? 5;
+  const selectedQualificationSummary = qualificationData?.teams?.find((team) => team.name === selectedStats.name);
+
+  // Qualification probability (50/50 per remaining match): scenariosTop4 / totalScenarios
+  let qualText;
+  if (qualificationData && typeof qualificationData.totalScenarios === 'number' && selectedQualificationSummary) {
+    const total = Number(qualificationData.totalScenarios) || 0;
+    const top4 = Number(selectedQualificationSummary.scenariosTop4) || 0;
+    if (total > 0) {
+      const pct = (top4 / total) * 100;
+      qualText = `Qualification probability: ${pct.toFixed(1)}% (${top4}/${total})`;
+    } else {
+      qualText = `Qualification probability: 0% (0/${total})`;
+    }
+  } else {
+    qualText = 'Qualification probability: —';
+  }
+
+  if (howScenariosEl) {
+    howScenariosEl.innerHTML = `<p>${escapeHtml(qualText)}</p>`;
+  }
+
+  if (qualificationData && qualificationData.success && selectedQualificationSummary && selectedQualificationSummary.scenariosTop4 <= detailedScenarioLimit && qualificationData.qualifyingScenarios) {
+    const teamName = selectedStats.name;
+    const list = qualificationData.qualifyingScenarios[teamName] || [];
+    if (list.length > 0) {
+      howScenariosEl.innerHTML += '<h3>How can this team qualify?</h3>' +
+        '<ul>' + list.map(s => `<li>${s}</li>`).join('') + '</ul>';
+    }
+  }
 }
 
 function renderTable(sortedStats, selectedName) {
@@ -300,6 +356,8 @@ async function refreshLiveData({ force = false } = {}) {
   try {
     // Always fetch fresh data - no caching
     const payload = await fetchLiveIPLStandings();
+    // Also fetch qualification summary (may be capped server-side)
+    await fetchQualification();
     setStateFromPayload(payload);
     updateRefreshState(`✓ Live data updated at ${payload.lastUpdated}`);
   } catch (error) {
@@ -307,6 +365,23 @@ async function refreshLiveData({ force = false } = {}) {
     summaryCopy.textContent = `Could not load live IPL data. ${error instanceof Error ? error.message : String(error)}`;
   } finally {
     refreshInFlight = false;
+  }
+}
+
+async function fetchQualification() {
+  try {
+    const resp = await fetch('http://localhost:5000/api/qualification', { cache: 'no-store' });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    if (!data || !data.success) {
+      qualificationData = data || null;
+      return qualificationData;
+    }
+    qualificationData = data;
+    return data;
+  } catch (e) {
+    qualificationData = null;
+    return null;
   }
 }
 

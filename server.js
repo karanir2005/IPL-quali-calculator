@@ -1,13 +1,19 @@
 import express from 'express';
 import cors from 'cors';
-import { fetchLiveStandings } from './backend/scraper.js';
+import url from 'url';
+import path from 'path';
+import { fetchLiveStandings, fetchUpcomingFixtures } from './backend/scraper.js';
 import { normalizeTeam, sortStandings } from './backend/calculations.js';
+import { computeQualification } from './backend/qualification.js';
 
 const app = express();
 const PORT = 5000;
 
 app.use(cors());
 app.use(express.json());
+// Serve static frontend files so the app can be opened via http://localhost:5000
+const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
+app.use(express.static(__dirname));
 // scraper and calculation helpers moved to backend modules
 
 app.get('/api/standings', async (req, res) => {
@@ -79,6 +85,64 @@ app.get('/api/standings', async (req, res) => {
 app.get('/health', (req, res) => {
   res.json({ status: 'Backend server is running on port 5000', timestamp: new Date().toISOString() });
 });
+
+app.get('/api/fixtures', async (req, res) => {
+  try {
+    console.log('Scrape request: /api/fixtures');
+    const data = await fetchBestLiveFixtures();
+    if (!data || !Array.isArray(data.fixtures) || data.fixtures.length === 0) {
+      return res.json({ success: false, fixtures: [], lastUpdated: new Date().toLocaleString(), source: null });
+    }
+    return res.json({ success: true, fixtures: data.fixtures, lastCompleted: data.lastCompleted || 0, lastUpdated: new Date().toLocaleString(), source: data.source || 'ESPN Cricinfo' });
+  } catch (error) {
+    console.error('Error in /api/fixtures', error.message);
+    return res.json({ success: false, fixtures: [], lastUpdated: new Date().toLocaleString(), source: null });
+  }
+});
+
+// Qualification endpoint: runs scenario enumeration with safeguards
+app.get('/api/qualification', async (req, res) => {
+  try {
+    console.log('Scrape request: /api/qualification');
+    const live = await fetchLiveStandings();
+    const fdata = await fetchBestLiveFixtures();
+    const teams = (live && Array.isArray(live.teams)) ? live.teams.map(normalizeTeam) : [];
+    const fixtures = (fdata && Array.isArray(fdata.fixtures)) ? fdata.fixtures : [];
+
+    if (!teams || teams.length === 0) return res.json({ success: false, reason: 'no_standings' });
+    if (!fixtures || fixtures.length === 0) return res.json({ success: false, reason: 'no_fixtures' });
+
+    // Only pass remaining (unplayed) fixtures to the engine
+    const lastCompleted = fdata && (typeof fdata.lastCompleted === 'number') ? fdata.lastCompleted : 0;
+    const remainingFixtures = fixtures.filter(f => Number(f.matchNumber) > lastCompleted);
+    const result = await computeQualification(teams, remainingFixtures);
+
+    // If engine refused due to too many matches, return informative response
+    if (!result || result.success === false) {
+      return res.json({ success: false, message: result && result.reason ? result.reason : 'engine_error', details: result || null });
+    }
+
+    return res.json({ success: true, ...result, lastUpdated: new Date().toLocaleString() });
+  } catch (err) {
+    console.error('Error in /api/qualification', err.message);
+    return res.json({ success: false, reason: 'unexpected_error', message: err.message });
+  }
+});
+
+async function fetchBestLiveFixtures() {
+  const first = await fetchUpcomingFixtures();
+  if (first && typeof first.lastCompleted === 'number' && first.lastCompleted > 0) {
+    return first;
+  }
+
+  const second = await fetchUpcomingFixtures();
+  if (!first) return second;
+  if (!second) return first;
+
+  const firstCompleted = Number(first.lastCompleted) || 0;
+  const secondCompleted = Number(second.lastCompleted) || 0;
+  return secondCompleted >= firstCompleted ? second : first;
+}
 
 app.listen(PORT, () => {
   console.log(`\n${'='.repeat(60)}`);

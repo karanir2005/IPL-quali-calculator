@@ -12,6 +12,17 @@
     <script defer src="app.js?v=2"></script>
   </head>
   <body>
+    <header class="top-nav">
+      <div class="shell nav-inner">
+        <div class="nav-left">
+          <a href="index.html" class="brand">IPL Quali</a>
+        </div>
+        <nav class="nav-right">
+          <a href="index.html" class="active">Home</a>
+          <a href="fixtures.html">Fixtures</a>
+        </nav>
+      </div>
+    </header>
     <main class="shell">
       <section class="hero">
         <div class="hero-copy">
@@ -77,6 +88,7 @@
           <p class="summary-copy" id="summaryCopy">
             Loading standings from ESPN Cricinfo via backend server...
           </p>
+          <div id="howScenarios" class="scenarios" aria-live="polite"></div>
         </article>
 
         <article class="panel standings">
