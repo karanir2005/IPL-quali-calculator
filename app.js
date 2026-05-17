@@ -7,6 +7,7 @@ const currentPoints = document.getElementById('currentPoints');
 const matchesPlayed = document.getElementById('matchesPlayed');
 const remainingMatches = document.getElementById('remainingMatches');
 const winsNeeded = document.getElementById('winsNeeded');
+const qualProbability = document.getElementById('qualProbability');
 const summaryCopy = document.getElementById('summaryCopy');
 const refreshState = document.getElementById('refreshState');
 const liveMeta = document.getElementById('liveMeta');
@@ -119,6 +120,7 @@ function renderStandings() {
     matchesPlayed.textContent = '';
     remainingMatches.textContent = '';
     winsNeeded.textContent = '';
+    qualProbability.innerHTML = '—';
     statusPill.className = 'pill';
     statusPill.textContent = '';
     summaryCopy.textContent = '';
@@ -210,37 +212,44 @@ function renderStandings() {
   const detailedScenarioLimit = qualificationData?.maxDetailedScenarios ?? 5;
   const selectedQualificationSummary = qualificationData?.teams?.find((team) => team.name === selectedStats.name);
 
-  // Qualification probability (50/50 per remaining match): scenariosTop4 / totalScenarios
-  let qualText;
+  // Qualification probability tile
   if (qualificationData && typeof qualificationData.totalScenarios === 'number' && selectedQualificationSummary) {
     const total = Number(qualificationData.totalScenarios) || 0;
     const top4 = Number(selectedQualificationSummary.scenariosTop4) || 0;
+    const top2 = Number(selectedQualificationSummary.scenariosTop2) || 0;
     if (total > 0) {
-      const pct = (top4 / total) * 100;
-      qualText = `Qualification probability: ${pct.toFixed(1)}% (${top4}/${total})`;
+      const pct4 = (top4 / total * 100).toFixed(1);
+      const pct2 = (top2 / total * 100).toFixed(1);
+      qualProbability.innerHTML =
+        `${pct4}%` +
+        `<span class="qual-top2">Top 2: ${pct2}%</span>` +
+        `<span class="qual-fraction">${top4}/${total}</span>`;
     } else {
-      qualText = `Qualification probability: 0% (0/${total})`;
+      qualProbability.innerHTML = '0%';
     }
   } else {
-    qualText = 'Qualification probability: —';
+    qualProbability.innerHTML = '—';
   }
 
   if (howScenariosEl) {
-    howScenariosEl.innerHTML = `<p>${escapeHtml(qualText)}</p>`;
+    howScenariosEl.innerHTML = '';
   }
 
   if (qualificationData && qualificationData.success && selectedQualificationSummary && selectedQualificationSummary.scenariosTop4 <= detailedScenarioLimit && qualificationData.qualifyingScenarios) {
     const teamName = selectedStats.name;
     const list = qualificationData.qualifyingScenarios[teamName] || [];
     if (list.length > 0) {
-      howScenariosEl.innerHTML += '<h3>How can this team qualify?</h3>' +
-        '<ul>' + list.map(s => `<li>${s}</li>`).join('') + '</ul>';
+      howScenariosEl.innerHTML = '<h3>How can this team qualify?</h3>' +
+        '<ul>' + list.map(s => `<li>${escapeHtml(s)}</li>`).join('') + '</ul>';
     }
   }
 }
 
 function renderTable(sortedStats, selectedName) {
   standingsBody.innerHTML = '';
+  const totalScenarios = qualificationData && typeof qualificationData.totalScenarios === 'number'
+    ? Number(qualificationData.totalScenarios) : 0;
+
   sortedStats.forEach((team) => {
     const row = document.createElement('tr');
     if (team.name === selectedName) {
@@ -249,6 +258,15 @@ function renderTable(sortedStats, selectedName) {
 
     const nrr = typeof team.nrr === 'number' ? team.nrr : 0;
     const nrrText = (nrr >= 0 ? '+' : '') + nrr.toFixed(2);
+
+    let qualCell = '—';
+    if (totalScenarios > 0 && qualificationData && qualificationData.teams) {
+      const qTeam = qualificationData.teams.find((t) => t.name === team.name);
+      if (qTeam && typeof qTeam.scenariosTop4 === 'number') {
+        const pct = (qTeam.scenariosTop4 / totalScenarios) * 100;
+        qualCell = `${pct.toFixed(1)}%`;
+      }
+    }
 
     row.innerHTML = `
       <td class="team-name">${escapeHtml(team.name)}</td>
@@ -259,6 +277,7 @@ function renderTable(sortedStats, selectedName) {
       <td class="nrr">${nrrText}</td>
       <td>${team.points}</td>
       <td>${team.maxPoints}</td>
+      <td class="qual-pct">${qualCell}</td>
     `;
 
     standingsBody.appendChild(row);
@@ -368,6 +387,34 @@ async function refreshLiveData({ force = false } = {}) {
   }
 }
 
+function computeTop2Client(data) {
+  // If the server already sent scenariosTop2 on every team, nothing to do.
+  if (data.teams && data.teams[0] && typeof data.teams[0].scenariosTop2 === 'number') return;
+
+  const fixtures = data.remainingFixtures || [];
+  const teamsList = data.teams || [];
+  if (!fixtures.length || !teamsList.length) return;
+
+  const total = Math.pow(2, fixtures.length);
+  const top2counts = {};
+  teamsList.forEach(t => { top2counts[t.name] = 0; });
+
+  for (let mask = 0; mask < total; mask++) {
+    const pts = {};
+    teamsList.forEach(t => { pts[t.name] = t.currentPoints; });
+    fixtures.forEach(({ teamA, teamB }, i) => {
+      if (mask & (1 << i)) pts[teamB] = (pts[teamB] || 0) + 2;
+      else pts[teamA] = (pts[teamA] || 0) + 2;
+    });
+    const ranked = teamsList
+      .map(t => ({ name: t.name, pts: pts[t.name] || 0, nrr: t.nrr || 0 }))
+      .sort((a, b) => b.pts - a.pts || b.nrr - a.nrr);
+    ranked.forEach((t, i) => { if (i < 2) top2counts[t.name]++; });
+  }
+
+  teamsList.forEach(t => { t.scenariosTop2 = top2counts[t.name] || 0; });
+}
+
 async function fetchQualification() {
   try {
     const resp = await fetch('http://localhost:5000/api/qualification', { cache: 'no-store' });
@@ -377,6 +424,7 @@ async function fetchQualification() {
       qualificationData = data || null;
       return qualificationData;
     }
+    computeTop2Client(data);
     qualificationData = data;
     return data;
   } catch (e) {

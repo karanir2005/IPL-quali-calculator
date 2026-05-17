@@ -9,7 +9,7 @@
       content="Estimate whether an IPL team has clinched a playoff spot or how many wins are needed to guarantee qualification."
     />
     <link rel="stylesheet" href="styles.css" />
-    <script defer src="app.js?v=2"></script>
+    <script defer src="app.js?v=5"></script>
   </head>
   <body>
     <header class="top-nav">
@@ -84,6 +84,10 @@
               <span>Win ceiling needed</span>
               <strong id="winsNeeded">0</strong>
             </div>
+            <div class="metric metric--qual">
+              <span>Qualification probability</span>
+              <strong id="qualProbability">—</strong>
+            </div>
           </div>
           <p class="summary-copy" id="summaryCopy">
             Loading standings from ESPN Cricinfo via backend server...
@@ -111,6 +115,7 @@
                   <th>NRR</th>
                   <th>Pts</th>
                   <th>Max</th>
+                  <th>Qual%</th>
                 </tr>
               </thead>
               <tbody id="standingsBody"></tbody>

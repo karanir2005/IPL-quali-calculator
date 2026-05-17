@@ -112,6 +112,7 @@ export function computeQualification(teams, fixtures, opts = {}) {
 		perTeamCounts[team.name] = {
 			scenariosTotal: 0,
 			scenariosTop4: 0,
+			scenariosTop2: 0,
 		};
 		// prepare an array but only store up to the per-team cap during enumeration
 		detailedScenarioLists[team.name] = [];
@@ -140,6 +141,7 @@ export function computeQualification(teams, fixtures, opts = {}) {
 			count.scenariosTotal += 1;
 			if (i < 4) {
 				count.scenariosTop4 += 1;
+				if (i < 2) count.scenariosTop2 += 1;
 				if (detailedScenarioLists[entry.name] && detailedScenarioLists[entry.name].length < detailedLimit) {
 					detailedScenarioLists[entry.name].push(buildScenarioSummary(path));
 				}
@@ -180,9 +182,10 @@ export function computeQualification(teams, fixtures, opts = {}) {
 	dfs(0, pointsMap, []);
 
 	const teamSummaries = (teams || []).map((team) => {
-		const counts = perTeamCounts[team.name] || { scenariosTotal: 0, scenariosTop4: 0 };
+		const counts = perTeamCounts[team.name] || { scenariosTotal: 0, scenariosTop4: 0, scenariosTop2: 0 };
 		const scenariosTotal = counts.scenariosTotal;
 		const scenariosTop4 = counts.scenariosTop4;
+		const scenariosTop2 = counts.scenariosTop2;
 
 		let status = 'Can Still Qualify';
 		if (scenariosTotal > 0 && scenariosTop4 === scenariosTotal) {
@@ -196,6 +199,7 @@ export function computeQualification(teams, fixtures, opts = {}) {
 			currentPoints: basePoints[team.name] || 0,
 			scenariosTotal,
 			scenariosTop4,
+			scenariosTop2,
 			status,
 		};
 	});

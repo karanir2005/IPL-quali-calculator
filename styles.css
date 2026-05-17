@@ -396,6 +396,35 @@ tbody tr:hover {
   font-weight: 700;
 }
 
+.qual-pct {
+  font-weight: 700;
+  color: var(--accent-strong);
+}
+
+.metric--qual {
+  grid-column: 1 / -1;
+}
+
+.metric--qual strong {
+  color: var(--accent-strong);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.qual-top2 {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.qual-fraction {
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: rgba(174, 186, 212, 0.55);
+  letter-spacing: 0.03em;
+}
+
 .notes {
   border-left: 4px solid rgba(247, 184, 75, 0.7);
 }
