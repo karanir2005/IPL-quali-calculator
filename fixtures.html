@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>IPL Fixtures</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script defer src="fixtures.js"></script>
+  </head>
+  <body>
+    <header class="top-nav">
+      <div class="shell nav-inner">
+        <div class="nav-left">
+          <a href="index.html" class="brand">IPL Qualification Calculator</a>
+        </div>
+        <nav class="nav-right">
+          <a href="index.html">Home</a>
+          <a href="fixtures.html" class="active">Fixtures</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section class="panel">
+        <h2>Fixtures</h2>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <p class="live-meta" id="fixturesMeta">Loading fixtures…</p>
+        </div>
+        <h3>Upcoming</h3>
+        <ul id="upcomingList" class="fixtures-list"></ul>
+        <h3>Past</h3>
+        <ul id="pastList" class="fixtures-list"></ul>
+      </section>
+    </main>
+  </body>
+</html>
