@@ -113,6 +113,10 @@ export function computeQualification(teams, fixtures, opts = {}) {
 			scenariosTotal: 0,
 			scenariosTop4: 0,
 			scenariosTop2: 0,
+			scenariosTop4NrrDependent: 0,
+			scenariosTop2NrrDependent: 0,
+			scenariosTop4NrrOnly: 0,
+			scenariosTop2NrrOnly: 0,
 		};
 		// prepare an array but only store up to the per-team cap during enumeration
 		detailedScenarioLists[team.name] = [];
@@ -133,7 +137,12 @@ export function computeQualification(teams, fixtures, opts = {}) {
 	function recordScenario(path, pointsMap) {
 		exploredScenarios += 1;
 		const ranking = rankTeams(pointsMap);
-		// Count top-4 by ranking position (first 4 entries are the qualifiers for this scenario).
+		// A slot is NRR-dependent if the team at that boundary is tied on points with the next team out.
+		// rank index 3 (4th place) — tied with rank 4 (5th place) means top-4 boundary is NRR-decided.
+		// rank index 1 (2nd place) — tied with rank 2 (3rd place) means top-2 boundary is NRR-decided.
+		const top4BoundaryNrr = ranking.length >= 5 && ranking[3].points === ranking[4].points;
+		const top2BoundaryNrr = ranking.length >= 3 && ranking[1].points === ranking[2].points;
+
 		for (let i = 0; i < ranking.length; i++) {
 			const entry = ranking[i];
 			const count = perTeamCounts[entry.name];
@@ -141,9 +150,28 @@ export function computeQualification(teams, fixtures, opts = {}) {
 			count.scenariosTotal += 1;
 			if (i < 4) {
 				count.scenariosTop4 += 1;
-				if (i < 2) count.scenariosTop2 += 1;
+				// NRR-dependent: team is inside top 4 but boundary is a points tie — NRR decided they're in
+				if (top4BoundaryNrr && (i === 3 || ranking[3].points === entry.points)) {
+					count.scenariosTop4NrrDependent += 1;
+				}
+				if (i < 2) {
+					count.scenariosTop2 += 1;
+					if (top2BoundaryNrr && (i === 1 || ranking[1].points === entry.points)) {
+						count.scenariosTop2NrrDependent += 1;
+					}
+				}
 				if (detailedScenarioLists[entry.name] && detailedScenarioLists[entry.name].length < detailedLimit) {
 					detailedScenarioLists[entry.name].push(buildScenarioSummary(path));
+				}
+			} else {
+				// Team is outside top 4 — check if they're tied on points with rank 3 (last qualifier).
+				// If so, better NRR could have put them through.
+				if (ranking.length >= 4 && entry.points === ranking[3].points) {
+					count.scenariosTop4NrrOnly += 1;
+				}
+				// Same for top 2 boundary
+				if (ranking.length >= 2 && entry.points === ranking[1].points) {
+					count.scenariosTop2NrrOnly += 1;
 				}
 			}
 		}
@@ -200,6 +228,10 @@ export function computeQualification(teams, fixtures, opts = {}) {
 			scenariosTotal,
 			scenariosTop4,
 			scenariosTop2,
+			scenariosTop4NrrDependent: counts.scenariosTop4NrrDependent || 0,
+			scenariosTop2NrrDependent: counts.scenariosTop2NrrDependent || 0,
+			scenariosTop4NrrOnly: counts.scenariosTop4NrrOnly || 0,
+			scenariosTop2NrrOnly: counts.scenariosTop2NrrOnly || 0,
 			status,
 		};
 	});

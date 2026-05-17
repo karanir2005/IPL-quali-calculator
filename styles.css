@@ -425,6 +425,14 @@ tbody tr:hover {
   letter-spacing: 0.03em;
 }
 
+.qual-calc {
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: rgba(174, 186, 212, 0.4);
+  font-family: monospace;
+  letter-spacing: 0.01em;
+}
+
 .notes {
   border-left: 4px solid rgba(247, 184, 75, 0.7);
 }

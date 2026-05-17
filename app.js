@@ -189,12 +189,13 @@ function renderStandings() {
   }
 
   if (isQualified) {
-    summaryCopy.textContent = `${selectedStats.name} has already qualified: at most ${QUALIFYING_SPOTS - 1} other teams can reach their current points.`;
+    summaryCopy.textContent = `${selectedStats.name} has already qualified.`;
   } else if (isEliminated) {
-    if (selectedQualification && typeof selectedQualification.scenariosTop4 === 'number' && selectedQualification.scenariosTop4 === 0) {
-      summaryCopy.textContent = `${selectedStats.name} appears eliminated: no wins/loss scenarios reach top 4 (low chance by NRR).`;
+    const nrrOnly = selectedQualification ? (Number(selectedQualification.scenariosTop4NrrOnly) || 0) : 0;
+    if (nrrOnly === 0) {
+      summaryCopy.textContent = `${selectedStats.name} has been eliminated.`;
     } else {
-      summaryCopy.textContent = `${selectedStats.name} is eliminated from qualification: even winning all remaining matches cannot reach the current 4th-place points (low chance by NRR).`;
+      summaryCopy.textContent = `${selectedStats.name} cannot qualify on points alone but has ${nrrOnly} scenario${nrrOnly === 1 ? '' : 's'} where NRR could save them.`;
     }
   } else {
     if (winsToGuarantee === Infinity) {
@@ -217,13 +218,21 @@ function renderStandings() {
     const total = Number(qualificationData.totalScenarios) || 0;
     const top4 = Number(selectedQualificationSummary.scenariosTop4) || 0;
     const top2 = Number(selectedQualificationSummary.scenariosTop2) || 0;
+    const top4Nrr = Number(selectedQualificationSummary.scenariosTop4NrrDependent) || 0;
+    const top2Nrr = Number(selectedQualificationSummary.scenariosTop2NrrDependent) || 0;
+    const top4NrrOnly = Number(selectedQualificationSummary.scenariosTop4NrrOnly) || 0;
+    const top2NrrOnly = Number(selectedQualificationSummary.scenariosTop2NrrOnly) || 0;
     if (total > 0) {
-      const pct4 = (top4 / total * 100).toFixed(1);
-      const pct2 = (top2 / total * 100).toFixed(1);
+      // NRR-dependent (inside top 4 but tied): count as 0.5 instead of 1
+      // NRR-only (outside top 4 but tied on points with cutoff): count as 0.5 (could have gone through with better NRR)
+      const adj4 = (top4 - top4Nrr * 0.5 + top4NrrOnly * 0.5) / total * 100;
+      const adj2 = (top2 - top2Nrr * 0.5 + top2NrrOnly * 0.5) / total * 100;
+      const pct4 = adj4.toFixed(1);
+      const pct2 = adj2.toFixed(1);
+
       qualProbability.innerHTML =
         `${pct4}%` +
-        `<span class="qual-top2">Top 2: ${pct2}%</span>` +
-        `<span class="qual-fraction">${top4}/${total}</span>`;
+        `<span class="qual-top2">Top 2: ${pct2}%</span>`;
     } else {
       qualProbability.innerHTML = '0%';
     }
@@ -247,8 +256,6 @@ function renderStandings() {
 
 function renderTable(sortedStats, selectedName) {
   standingsBody.innerHTML = '';
-  const totalScenarios = qualificationData && typeof qualificationData.totalScenarios === 'number'
-    ? Number(qualificationData.totalScenarios) : 0;
 
   sortedStats.forEach((team) => {
     const row = document.createElement('tr');
@@ -259,15 +266,6 @@ function renderTable(sortedStats, selectedName) {
     const nrr = typeof team.nrr === 'number' ? team.nrr : 0;
     const nrrText = (nrr >= 0 ? '+' : '') + nrr.toFixed(2);
 
-    let qualCell = '—';
-    if (totalScenarios > 0 && qualificationData && qualificationData.teams) {
-      const qTeam = qualificationData.teams.find((t) => t.name === team.name);
-      if (qTeam && typeof qTeam.scenariosTop4 === 'number') {
-        const pct = (qTeam.scenariosTop4 / totalScenarios) * 100;
-        qualCell = `${pct.toFixed(1)}%`;
-      }
-    }
-
     row.innerHTML = `
       <td class="team-name">${escapeHtml(team.name)}</td>
       <td>${team.played}</td>
@@ -277,7 +275,6 @@ function renderTable(sortedStats, selectedName) {
       <td class="nrr">${nrrText}</td>
       <td>${team.points}</td>
       <td>${team.maxPoints}</td>
-      <td class="qual-pct">${qualCell}</td>
     `;
 
     standingsBody.appendChild(row);
