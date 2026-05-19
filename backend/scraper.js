@@ -133,14 +133,17 @@ export function parseEspnCricinfoHtml(html) {
         if (cells.length < 8) return;
         const cellTexts = [];
         cells.each((i, cell) => cellTexts.push($(cell).text().trim()));
+        // Skip expanded "recent results" rows — they don't start with a rank number
+        if (!/^\d/.test(cellTexts[0])) return;
         let name = cellTexts[0].replace(/^\d+/, '').trim();
         const played = parseInt(cellTexts[1]) || 0;
         const wins = parseInt(cellTexts[2]) || 0;
         const losses = parseInt(cellTexts[3]) || 0;
-        const noResults = parseInt(cellTexts[5]) || 0;
-        const points = parseInt(cellTexts[6]) || (wins * 2 + noResults);
+        // columns: [0]=rank+name [1]=played [2]=wins [3]=losses [4]=NR [5]=points [6]=NRR [7]=form
+        const noResults = parseInt(cellTexts[4]) || 0;
+        const points = parseInt(cellTexts[5]) || (wins * 2 + noResults);
         let nrr = 0;
-        if (cellTexts[7]) { const n = parseFloat(cellTexts[7]); if (!isNaN(n)) nrr = n; }
+        if (cellTexts[6]) { const n = parseFloat(cellTexts[6]); if (!isNaN(n)) nrr = n; }
         if (name && played > 0) teams.push({ name, played, wins, losses, noResults, nrr, points });
       } catch (e) {
         // ignore row
