@@ -53,11 +53,9 @@ export function computeQualification(teams, fixtures, opts = {}) {
 
 	const basePoints = {};
 	const baseNrr = {};
-	const baseTeams = {};
 	for (const team of teams || []) {
 		basePoints[team.name] = Number(team.points) || 0;
 		baseNrr[team.name] = Number(team.nrr) || 0;
-		baseTeams[team.name] = clone(team);
 	}
 
 	const remainingFixtures = (fixtures || [])
@@ -83,6 +81,12 @@ export function computeQualification(teams, fixtures, opts = {}) {
 
 	const remainingMatches = remainingFixtures.length;
 
+	const teamsWithRemainingGames = new Set();
+	for (const f of remainingFixtures) {
+		teamsWithRemainingGames.add(f.teamA);
+		teamsWithRemainingGames.add(f.teamB);
+	}
+
 	if (remainingMatches > MAX_REMAINING_MATCHES) {
 		return {
 			success: false,
@@ -97,14 +101,14 @@ export function computeQualification(teams, fixtures, opts = {}) {
 		const totalScenarios = Math.pow(2, remainingMatches);
 		const detailedLimit = (opts && typeof opts.maxDetailedScenarios === 'number') ? opts.maxDetailedScenarios : MAX_DETAILED_SCENARIOS;
 		if (totalScenarios > MAX_TOTAL_SCENARIOS) {
-		return {
-			success: false,
-			reason: 'scenario_count_exceeds_limit',
-			remainingMatches,
-			totalScenarios,
-			limit: MAX_TOTAL_SCENARIOS,
-		};
-	}
+			return {
+				success: false,
+				reason: 'scenario_count_exceeds_limit',
+				remainingMatches,
+				totalScenarios,
+				limit: MAX_TOTAL_SCENARIOS,
+			};
+		}
 
 	const perTeamCounts = {};
 	const detailedScenarioLists = {};
@@ -140,8 +144,10 @@ export function computeQualification(teams, fixtures, opts = {}) {
 		// A slot is NRR-dependent if the team at that boundary is tied on points with the next team out.
 		// rank index 3 (4th place) — tied with rank 4 (5th place) means top-4 boundary is NRR-decided.
 		// rank index 1 (2nd place) — tied with rank 2 (3rd place) means top-2 boundary is NRR-decided.
-		const top4BoundaryNrr = ranking.length >= 5 && ranking[3].points === ranking[4].points;
-		const top2BoundaryNrr = ranking.length >= 3 && ranking[1].points === ranking[2].points;
+		const top4BoundaryNrr = ranking.length >= 5 && ranking[3].points === ranking[4].points
+			&& (teamsWithRemainingGames.has(ranking[3].name) || teamsWithRemainingGames.has(ranking[4].name));
+		const top2BoundaryNrr = ranking.length >= 3 && ranking[1].points === ranking[2].points
+			&& (teamsWithRemainingGames.has(ranking[1].name) || teamsWithRemainingGames.has(ranking[2].name));
 
 		for (let i = 0; i < ranking.length; i++) {
 			const entry = ranking[i];
